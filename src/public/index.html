@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TSI WhatsApp Gateway Service</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-gradient: radial-gradient(circle at 10% 20%, rgba(16, 24, 40, 1) 0%, rgba(8, 12, 22, 1) 90.2%);
+      --card-bg: rgba(23, 32, 54, 0.65);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-green: #10b981;
+      --accent-green-glow: rgba(16, 185, 129, 0.25);
+      --accent-amber: #f59e0b;
+      --accent-amber-glow: rgba(245, 158, 11, 0.25);
+      --accent-red: #ef4444;
+      --accent-red-glow: rgba(239, 68, 68, 0.25);
+      --accent-blue: #3b82f6;
+      --text-main: #f3f4f6;
+      --text-muted: #9ca3af;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Outfit', sans-serif;
+    }
+
+    body {
+      background: var(--bg-gradient);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+    }
+
+    header {
+      max-width: 1200px;
+      margin: 0 auto 30px auto;
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 28px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      backdrop-filter: blur(16px);
+      border-radius: 18px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .brand-logo {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #25D366, #128C7E);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 22px;
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(37, 211, 102, 0.35);
+    }
+
+    .brand-title h1 {
+      font-size: 20px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    .brand-title p {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 16px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 9999px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+
+    .status-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: var(--accent-red);
+      box-shadow: 0 0 12px var(--accent-red-glow);
+    }
+
+    .status-dot.connected {
+      background: var(--accent-green);
+      box-shadow: 0 0 12px var(--accent-green-glow);
+      animation: pulse 2s infinite;
+    }
+
+    .status-dot.qr_ready {
+      background: var(--accent-amber);
+      box-shadow: 0 0 12px var(--accent-amber-glow);
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.5; transform: scale(1.15); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr 1.3fr;
+      gap: 24px;
+    }
+
+    @media (max-width: 900px) {
+      .container {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 26px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+    }
+
+    .card-title {
+      font-size: 17px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .qr-box {
+      background: rgba(10, 15, 29, 0.8);
+      border: 2px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 320px;
+      text-align: center;
+    }
+
+    .qr-box img {
+      max-width: 240px;
+      height: auto;
+      border-radius: 12px;
+      background: #fff;
+      padding: 10px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+    }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    button {
+      background: linear-gradient(135deg, #1f2937, #111827);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button:hover {
+      background: linear-gradient(135deg, #374151, #1f2937);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-1px);
+    }
+
+    button.primary {
+      background: linear-gradient(135deg, #25D366, #128C7E);
+      border: none;
+      color: #fff;
+      box-shadow: 0 4px 15px rgba(37, 211, 102, 0.3);
+    }
+
+    button.primary:hover {
+      box-shadow: 0 6px 20px rgba(37, 211, 102, 0.5);
+    }
+
+    button.danger {
+      background: linear-gradient(135deg, #ef4444, #991b1b);
+      border: none;
+      color: #fff;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    input, textarea {
+      width: 100%;
+      background: rgba(10, 15, 29, 0.8);
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px 14px;
+      color: var(--text-main);
+      font-size: 14px;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus {
+      outline: none;
+      border-color: var(--accent-green);
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .stat-item {
+      background: rgba(10, 15, 29, 0.6);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px;
+      text-align: center;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-main);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .log-box {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+      background: #060913;
+      border: 1px solid var(--card-border);
+      border-radius: 10px;
+      padding: 12px;
+      color: #10b981;
+      max-height: 130px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <div class="brand">
+      <div class="brand-logo">WA</div>
+      <div class="brand-title">
+        <h1>TSI WhatsApp Gateway</h1>
+        <p>Microservice Powered by @whiskeysockets/baileys & BullMQ</p>
+      </div>
+    </div>
+    <div class="status-badge">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">Memeriksa status...</span>
+    </div>
+  </header>
+
+  <div class="container">
+    <!-- Kolom Kiri: Autentikasi Sesi & QR Code -->
+    <div class="card">
+      <div class="card-title">
+        <span>Sesi WhatsApp</span>
+        <span id="userInfo" style="font-size: 13px; font-weight: 400; color: var(--accent-green);"></span>
+      </div>
+
+      <div class="qr-box" id="qrContainer">
+        <p style="color: var(--text-muted); font-size: 14px;">Memuat kode QR...</p>
+      </div>
+
+      <div class="actions-grid">
+        <button id="btnRefreshQr" onclick="checkStatus()">🔄 Refresh Status</button>
+        <button id="btnPairing" onclick="promptPairingCode()">🔢 Pairing Code</button>
+        <button id="btnRestart" onclick="restartService()">⚡ Restart Socket</button>
+        <button class="danger" id="btnLogout" onclick="logoutSession()">🚪 Logout Sesi</button>
+      </div>
+    </div>
+
+    <!-- Kolom Kanan: Antrean & Pengujian Kirim Pesan -->
+    <div class="card">
+      <div class="card-title">
+        <span>Antrean Pesan (BullMQ)</span>
+        <button style="padding: 6px 12px; font-size: 12px;" onclick="fetchQueueStatus()">Segarkan Antrean</button>
+      </div>
+
+      <div class="stats-grid">
+        <div class="stat-item">
+          <div class="stat-value" id="queueWaiting">0</div>
+          <div class="stat-label">Menunggu</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="queueActive" style="color: var(--accent-amber);">0</div>
+          <div class="stat-label">Diproses</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="queueCompleted" style="color: var(--accent-green);">0</div>
+          <div class="stat-label">Terkirim</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="queueFailed" style="color: var(--accent-red);">0</div>
+          <div class="stat-label">Gagal</div>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top: 10px; margin-bottom: 14px;">
+        <span>Uji Coba Pengiriman Pesan</span>
+      </div>
+
+      <form id="sendMessageForm" onsubmit="handleSendMessage(event)">
+        <div class="form-group">
+          <label for="inputApiKey">API Key</label>
+          <input type="password" id="inputApiKey" value="secret_api_key_whatsapp_tsi" placeholder="Masukkan API Key">
+        </div>
+        <div class="form-group">
+          <label for="inputTo">Nomor Tujuan (Contoh: 081234567890)</label>
+          <input type="text" id="inputTo" required placeholder="081234567890">
+        </div>
+        <div class="form-group">
+          <label for="inputMessage">Isi Pesan</label>
+          <textarea id="inputMessage" rows="3" required placeholder="Halo, ini pesan pengujian dari TSI WhatsApp Gateway."></textarea>
+        </div>
+
+        <button type="submit" class="primary" style="width: 100%;">🚀 Masukkan ke Antrean Kirim</button>
+      </form>
+
+      <div style="margin-top: 18px;">
+        <label>Response Log:</label>
+        <div class="log-box" id="responseLog">Menunggu aktivitas...</div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    async function checkStatus() {
+      try {
+        const res = await fetch('/api/session/status');
+        const json = await res.json();
+        const data = json.data;
+
+        const dot = document.getElementById('statusDot');
+        const text = document.getElementById('statusText');
+        const userInfo = document.getElementById('userInfo');
+        const qrContainer = document.getElementById('qrContainer');
+
+        dot.className = 'status-dot ' + data.status;
+        
+        if (data.status === 'connected') {
+          text.innerText = 'Terhubung';
+          const name = data.user?.name || 'Nomor WhatsApp';
+          const jid = data.user?.id ? data.user.id.split(':')[0] : '';
+          userInfo.innerText = `${name} (${jid})`;
+          qrContainer.innerHTML = `
+            <div style="text-align: center; color: var(--accent-green);">
+              <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px auto; display: block;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+              </svg>
+              <h3 style="font-size: 18px; margin-bottom: 6px;">WhatsApp Aktif & Terhubung</h3>
+              <p style="color: var(--text-muted); font-size: 13px;">Siap menerima instruksi pengiriman pesan melalui REST API.</p>
+            </div>
+          `;
+        } else if (data.status === 'qr_ready') {
+          text.innerText = 'Menunggu Scan QR';
+          userInfo.innerText = '';
+          fetchQrCode();
+        } else {
+          text.innerText = 'Terputus / Menghubungkan...';
+          userInfo.innerText = '';
+          qrContainer.innerHTML = `
+            <p style="color: var(--text-muted); font-size: 14px;">Koneksi sedang disiapkan atau terputus.<br>Klik tombol <b>Refresh</b> atau <b>Restart</b>.</p>
+          `;
+        }
+      } catch (err) {
+        document.getElementById('statusText').innerText = 'Gagal menghubungi server';
+      }
+    }
+
+    async function fetchQrCode() {
+      try {
+        const res = await fetch('/api/session/qr');
+        const json = await res.json();
+        const qrContainer = document.getElementById('qrContainer');
+
+        if (json.success && json.data?.qrCodeDataUrl) {
+          qrContainer.innerHTML = `
+            <img src="${json.data.qrCodeDataUrl}" alt="WhatsApp QR Code">
+            <p style="color: var(--text-muted); font-size: 13px; margin-top: 14px;">
+              Buka WhatsApp di ponsel > <b>Perangkat Tertaut</b> > <b>Tautkan Perangkat</b>
+            </p>
+          `;
+        }
+      } catch (err) {
+        console.error('Error fetching QR:', err);
+      }
+    }
+
+    async function fetchQueueStatus() {
+      try {
+        const apiKey = document.getElementById('inputApiKey').value;
+        const res = await fetch('/api/messages/queue-status', {
+          headers: { 'x-api-key': apiKey }
+        });
+        const json = await res.json();
+        if (json.success && json.data) {
+          document.getElementById('queueWaiting').innerText = json.data.waiting || 0;
+          document.getElementById('queueActive').innerText = json.data.active || 0;
+          document.getElementById('queueCompleted').innerText = json.data.completed || 0;
+          document.getElementById('queueFailed').innerText = json.data.failed || 0;
+        }
+      } catch (err) {
+        console.warn('Queue fetch error:', err);
+      }
+    }
+
+    async function promptPairingCode() {
+      const phone = prompt('Masukkan nomor WhatsApp (contoh: 6281234567890):');
+      if (!phone) return;
+
+      const apiKey = document.getElementById('inputApiKey').value;
+      try {
+        const res = await fetch('/api/session/pairing-code', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+          },
+          body: JSON.stringify({ phoneNumber: phone }),
+        });
+        const json = await res.json();
+        if (json.success) {
+          alert('Kode Pairing WhatsApp Anda: ' + json.data.pairingCode);
+        } else {
+          alert('Gagal: ' + json.message);
+        }
+      } catch (err) {
+        alert('Terjadi kesalahan saat meminta pairing code.');
+      }
+    }
+
+    async function restartService() {
+      if (!confirm('Apakah Anda yakin ingin me-restart socket WhatsApp?')) return;
+      const apiKey = document.getElementById('inputApiKey').value;
+      await fetch('/api/session/restart', {
+        method: 'POST',
+        headers: { 'x-api-key': apiKey }
+      });
+      setTimeout(checkStatus, 2000);
+    }
+
+    async function logoutSession() {
+      if (!confirm('Logout akan menghapus sesi WhatsApp saat ini dan memerlukan scan ulang. Lanjutkan?')) return;
+      const apiKey = document.getElementById('inputApiKey').value;
+      await fetch('/api/session/logout', {
+        method: 'DELETE',
+        headers: { 'x-api-key': apiKey }
+      });
+      setTimeout(checkStatus, 2000);
+    }
+
+    async function handleSendMessage(e) {
+      e.preventDefault();
+      const apiKey = document.getElementById('inputApiKey').value;
+      const to = document.getElementById('inputTo').value;
+      const message = document.getElementById('inputMessage').value;
+      const logBox = document.getElementById('responseLog');
+
+      logBox.innerText = 'Mengirim instruksi ke API...';
+
+      try {
+        const res = await fetch('/api/messages/send-text', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+          },
+          body: JSON.stringify({ to, message }),
+        });
+        const json = await res.json();
+        logBox.innerText = JSON.stringify(json, null, 2);
+        fetchQueueStatus();
+      } catch (err) {
+        logBox.innerText = 'Error: ' + err.message;
+      }
+    }
+
+    // Polling berkala
+    checkStatus();
+    fetchQueueStatus();
+    setInterval(checkStatus, 5000);
+    setInterval(fetchQueueStatus, 6000);
+  </script>
+</body>
+</html>
