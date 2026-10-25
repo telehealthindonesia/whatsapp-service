@@ -1,0 +1,151 @@
+name: Deploy WhatsApp Service to AWS ECR & VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ${{ vars.AWS_REGION || 'ap-southeast-2' }}
+  ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY || 'whatsapp-service' }}
+  CONTAINER_NAME: whatsapp-service-app
+  DEPLOY_DIR: ${{ vars.VPS_DEPLOY_PATH || '/var/www/whatsapp-service' }}
+
+jobs:
+  build-and-deploy:
+    name: Build, Push to ECR & Deploy to VPS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Log in to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 1. Build Docker Image & Push ke AWS ECR dengan GHA Cache
+      - name: Build and Push Docker Image to Amazon ECR
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:${{ github.sha }}
+            ${{ steps.login-ecr.outputs.registry }}/${{ env.ECR_REPOSITORY }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # 2. Dapatkan Temporary Token ECR untuk autentikasi di VPS
+      - name: Generate Temporary ECR Auth Token
+        id: ecr-token
+        run: |
+          TOKEN=$(aws ecr get-login-password --region ${{ env.AWS_REGION }})
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      # 3. Deploy ke VPS via SSH
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.ECR_REPOSITORY }}
+          ECR_TOKEN: ${{ steps.ecr-token.outputs.token }}
+          CONTAINER_NAME: ${{ env.CONTAINER_NAME }}
+          DEPLOY_DIR: ${{ env.DEPLOY_DIR }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ secrets.VPS_PORT || 22 }}
+          envs: ECR_REGISTRY,ECR_REPOSITORY,ECR_TOKEN,CONTAINER_NAME,DEPLOY_DIR
+          script_stop: true
+          script: |
+            echo "🚀 [1/6] Login ke AWS ECR di VPS..."
+            echo "$ECR_TOKEN" | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+            echo "📁 [2/6] Mempersiapkan direktori aplikasi di VPS ($DEPLOY_DIR)..."
+            mkdir -p $DEPLOY_DIR/sessions $DEPLOY_DIR/uploads
+            chmod -R 775 $DEPLOY_DIR/sessions $DEPLOY_DIR/uploads || true
+
+            cd $DEPLOY_DIR
+
+            # Pastikan file .env ada di host sebelum compose dijalankan
+            if [ ! -f .env ]; then
+              touch .env
+              echo "⚠️ File $DEPLOY_DIR/.env dibuat otomatis. Silakan lengkapi konfigurasi variabel environment Anda!"
+            fi
+
+            # Update atau buat file docker-compose.prod.yml di VPS
+            cat << 'EOF' > docker-compose.prod.yml
+            services:
+              app:
+                image: ${ECR_REGISTRY}/${ECR_REPOSITORY}:latest
+                container_name: whatsapp-service-app
+                restart: unless-stopped
+                ports:
+                  - "3000:3000"
+                env_file:
+                  - .env
+                environment:
+                  - REDIS_HOST=redis
+                  - REDIS_PORT=6379
+                  - SESSION_DIR=/app/sessions
+                volumes:
+                  - ./sessions:/app/sessions
+                  - ./uploads:/app/uploads
+                depends_on:
+                  - redis
+                extra_hosts:
+                  - "host.docker.internal:host-gateway"
+
+              redis:
+                image: redis:7-alpine
+                container_name: whatsapp-redis
+                restart: unless-stopped
+                ports:
+                  - "6379:6379"
+                volumes:
+                  - redis_data:/data
+                command: redis-server --appendonly yes
+
+            volumes:
+              redis_data:
+            EOF
+
+            # Simpan file env runtime untuk compose
+            echo "ECR_REGISTRY=$ECR_REGISTRY" > .env.docker
+            echo "ECR_REPOSITORY=$ECR_REPOSITORY" >> .env.docker
+
+            echo "📥 [3/6] Mengunduh Docker image terbaru dari ECR..."
+            docker pull $ECR_REGISTRY/$ECR_REPOSITORY:latest
+
+            echo "🔄 [4/6] Menjalankan / Memperbarui container WhatsApp Service & Redis..."
+            if docker compose version >/dev/null 2>&1; then
+              docker compose --env-file .env.docker -f docker-compose.prod.yml up -d
+            else
+              docker-compose --env-file .env.docker -f docker-compose.prod.yml up -d
+            fi
+
+            echo "⏳ [5/6] Menunggu inisialisasi socket Baileys..."
+            sleep 5
+
+            echo "🧹 [6/6] Membersihkan image lama yang tidak terpakai..."
+            docker image prune -f
+
+            echo "🏥 Health check status..."
+            curl -s http://127.0.0.1:3000/api/session/status || true
+
+            echo "🎉 Deployment WhatsApp Service ke VPS sukses!"
