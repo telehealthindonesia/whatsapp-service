@@ -1,4 +1,34 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: whatsapp-service-app
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      - API_KEY=${API_KEY:-secret_api_key_whatsapp_tsi}
+      - SESSION_DIR=/app/sessions
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD:-}
+      - REDIS_DB=${REDIS_DB:-0}
+      - WEBHOOK_URL=${WEBHOOK_URL:-http://host.docker.internal:8000/api/whatsapp/webhook}
+      - WEBHOOK_SECRET=${WEBHOOK_SECRET:-secret_webhook_key}
+      - MIN_MESSAGE_DELAY_MS=${MIN_MESSAGE_DELAY_MS:-2000}
+      - MAX_MESSAGE_DELAY_MS=${MAX_MESSAGE_DELAY_MS:-4000}
+      - ENABLE_TYPING_SIMULATION=${ENABLE_TYPING_SIMULATION:-true}
+    volumes:
+      - ./sessions:/app/sessions
+      - ./uploads:/app/uploads
+    depends_on:
+      - redis
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
   redis:
     image: redis:7-alpine
     container_name: whatsapp-redis
